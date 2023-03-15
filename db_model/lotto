@@ -1,0 +1,10 @@
+CREATE TABLE [IF NOT EXISTS] lotto (
+  id INT PRIMARY KEY,
+  num1 VARCHAR(17) NOT NULL,
+  num2 VARCHAR(17),
+  date INT NOT NULL,
+  time INT,
+  ss_id INT,
+  FOREIGN KEY (ss_id)
+      REFERENCES superszansa (ss_id),
+);
