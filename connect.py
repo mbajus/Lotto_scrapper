@@ -9,6 +9,7 @@ def db_cur():
         params = config()
         # connect to db
         conn = psycopg2.connect(**params)
+        conn.autocommit = True
         # return db cursor
         cur = conn.cursor()
         return cur
@@ -21,8 +22,8 @@ def create_tables():
     cur = db_cur()
     if not check_tables():
         for table in listdir('./db_model'):
-            with open(f'./db_model/{table}')
-                cur.execute(table.read())       
+            with open(f"./db_model/{table}", "r") as fh:
+                cur.execute(fh.read())       
         if check_tables():
             print('DB tables were successfully created.')
         else:
@@ -32,10 +33,20 @@ def create_tables():
             
 def check_tables():
     cur = db_cur()
-    if set(cur.execute('SELECT * FROM information_schema.tables')) == set(listdir('./db_model')): 
+    cur.execute("""SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                ORDER BY table_name;""")
+    db_tables = set([item[0] for item in cur.fetchall()]) 
+    if db_tables == set(listdir('./db_model')): 
         return True
     else:
         return False
+
+def check_version():
+    cur = db_cur()
+    cur.execute('SELECT version()')
+    print('PostgreSQL database version: ', cur.fetchone()[0])
 
 def config(filename='database.ini', section='postgresql'):
     # parse db data
@@ -54,4 +65,4 @@ def config(filename='database.ini', section='postgresql'):
 
 # check tables
 if __name__ == '__main__':
-    check_tables()
+    create_tables()
