@@ -1,6 +1,6 @@
-CREATE TABLE [IF NOT EXISTS] eurojackpot (
+CREATE TABLE IF NOT EXISTS eurojackpot (
   id INT PRIMARY KEY,
-  num1 INT NOT NULL,
+  num1 VARCHAR(59) NOT NULL,
   date INT NOT NULL,
-  time INT,
-);
+  time INT)
+  ;

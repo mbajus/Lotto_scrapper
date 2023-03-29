@@ -1,9 +1,6 @@
-CREATE TABLE [IF NOT EXISTS] minilotto (
+CREATE TABLE IF NOT EXISTS minilotto (
   id INT PRIMARY KEY,
   num1 VARCHAR(14) NOT NULL,
   date INT NOT NULL,
-  time INT,
-  ss_id INT,
-  FOREIGN KEY (ss_id)
-      REFERENCES superszansa (ss_id),
-);
+  time INT)
+  ;

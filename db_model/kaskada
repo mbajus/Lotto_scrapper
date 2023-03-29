@@ -1,9 +1,6 @@
-CREATE TABLE [IF NOT EXISTS] kaskada (
+CREATE TABLE IF NOT EXISTS kaskada (
   id INT PRIMARY KEY,
-  num1 INT NOT NULL,
+  num1 VARCHAR(35) NOT NULL,
   date INT NOT NULL,
-  time INT,
-  ss_id INT,
-  FOREIGN KEY (ss_id)
-      REFERENCES superszansa (ss_id),
-);
+  time INT)
+  ;
