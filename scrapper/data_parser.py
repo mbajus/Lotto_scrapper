@@ -1,59 +1,88 @@
 import bs4 as bs
-from .chrome_driver import gethtml
-from ..extensions import db
+from chrome_driver import get_page
+        
+class LotteryGame:
+    def __init__(self, table, id='', nums1='', nums2='', date='', time=''):
+        self.table = table
+        self.id = id
+        self.nums1 = nums1
+        self.nums2 = nums2
+        self.date = date
+        self.time = time
 
+    def __str__(self):
+        return f"{self.table} {self.date} {self.time} - {self.nums1}"
 
-def insert_db(record): 
-    db.execute('INSERT ... ON CONFLICT DO NOTHING/UPDATE')
+class LotteryResultsCollector:
+    def __init__(self):
+        self.results = []
 
-def scrap_to_db(url):
+    def add_result(self, game_result):
+        self.results.append(game_result)
+
+    def insert_multiple_records(self, conn):
+        #group the results by table name
+        table_results = {}
+        for result in self.results:
+            if result.table is None:
+                raise ValueError("Table name not specified for game result")
+            
+            table_name = result.table
+
+            if table_name not in table_results:
+                table_results[table_name] = []
+
+            table_results[table_name].append(result)
+
+        #craete a cursor object to interact with the database
+        cursor = conn.cursor()
+
+        #insert all the collected results into the appropriate tables
+        for table_name, results in table_results.items():
+            query = f"INSERT INTO {table_name} (id, nums1, date, time"
+            values = [(result.id, result.nums1, result.date, result.time) for result in results]
+
+            if table_name in ["lottoplus", "ekstrapremia", "multimulti"]:
+                query += ", nums2"
+                values = [(result.id, result.nums1, result.date, result.time, result.nums2) for result in results]
+
+            query += ") VALUES (%s, %s, %s, %s"
+            placeholders = "%s, %s, %s, %s" if table_name in ["lottoplus", "ekstrapremia", "multimulti"] else "%s, %s, %s, %s, %s"
+            query += placeholders + ")"
+            
+            cursor.executemany(query, values)
+
+        #commit the transaction and close the cursor
+        conn.commit()
+        cursor.close()
+
+def scrap_results(url: str):
+    result_collector = LotteryResultsCollector()
     print(f"Scraping url: {url}")
-    page = gethtml(url)
+    page = get_page(url)
     page = bs.BeautifulSoup(page, "html.parser")
-    for code in page.find_all("div", class_="game-main-box skip-contrast"):
-        db_models = {
-            "Lotto": Lotto(),
-            "Eurojackpot": Eurojackpot(),
-            "Multi Multi": Multimulti(),
-            "Ekstra Pensja": Ekstrapensja(), 
-            "Mini Lotto": Minilotto(),
-            "Kaskada": Kaskada(),
-        } # while exec() doesnt work on heroku
-        date = code.find("p", class_="sg__desc-title").get_text().strip()
-        time = date[-5:].replace(":","") if ":" in date else None
-        date = "".join(date.split(",")[1].strip().split(".")[::-1])   
+    for code in page.find_all("div", class_="game-main-box skip-contrast"):  
         for row in code.find_all("div", class_="result-item"):
-            name = row.find("p", class_="result-item__name").get_text().strip()          
-            if name in ["Lotto", "Eurojackpot", "Multi Multi", "Ekstra Pensja", "Mini Lotto", "Kaskada"]:
-                # print('record = %s()' % name.replace(' ', '').lower().capitalize()) # doesnt work on heroku ??!
-                # exec('record = %s()' % name.replace(' ', '').lower().capitalize())
-                record = db_models[name]
-                record.date = date
-                record.time = time
-                record.id = row.find("p", class_="result-item__number").get_text().strip()
-                nums1 = []
-                for i in row.find_all("div", class_="scoreline-item"):
-                    nums1.append(i.get_text().strip())
-                record.nums1 = ",".join(nums1)
-                if name == "Multi Multi":
-                    nums2 = row.find("div", class_="scoreline-item circle special-multi")
-                    record.nums2 = None if nums2 == None else nums2.get_text().strip()
-            elif name in ["Lotto Plus", "Ekstra Premia"]:
-                nums2 = []
-                for i in row.find_all("div", class_="scoreline-item"):
-                    nums2.append(i.get_text().strip())
-                record.nums2 = ",".join(nums2)
-            elif name == "Super Szansa":
-                ss_id = row.find("p", class_="result-item__number").get_text().strip()
-                if 'record' in locals():
-                    record.ss_id = ss_id
-                nums_ss = []
-                for i in row.find_all("div", class_="scoreline-item"):
-                    nums_ss.append(i.get_text().strip())
-                nums_ss = ",".join(nums_ss)
-                insert_db(Superszansa(id=ss_id, nums1=nums_ss, date=date, time=time))
+            game = row.find("p", class_="result-item__name").get_text().strip().replace(" ","").lower()
+            if game in ["lotto", "eurojackpot", "multimulti", "ekstrapensja", "minilotto", "kaskada"]:
+                result = LotteryGame(table=game)
+                result.date = code.find("p", class_="sg__desc-title").get_text().strip()
+                result.time = result.date[-5:].replace(":","") if ":" in result.date else None
+                result.date = "".join(result.date.split(",")[1].strip().split(".")[::-1])
+                result.id = row.find("p", class_="result-item__number").get_text().strip()
+                for num in row.find_all("div", class_="scoreline-item"):
+                    result.nums1 += num.get_text().strip() + ","
+                result.nums1 = result.nums1.strip(",")    
+                if result.table == "multimulti":
+                    result.nums2 = row.find("div", class_="scoreline-item circle special-multi").get_text().strip()
+            elif game in ["lottoplus", "ekstrapremia"]:
+                for num in row.find_all("div", class_="scoreline-item"):
+                    result.nums2 += num.get_text().strip() + ","
+                result.nums2 = result.nums2.strip(",")
             else:
-                print(f'{name} game didnt match the db tables.')
-        if 'record' in locals() and not record == None:
-            insert_db(record)
-            del record
+                continue
+        result_collector.add_result(result)
+    return result_collector
+
+if __name__ == "__main__":
+    scrap_results("https://www.lotto.pl/wyniki")

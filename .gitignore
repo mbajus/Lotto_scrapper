@@ -1,0 +1,16 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# additionals
+chromedriver.exe
+scrapper_env/
+db/
+TODO
+*.bat
+*.ini

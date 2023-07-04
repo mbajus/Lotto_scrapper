@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS ekstrapensja (
+  id INT PRIMARY KEY,
+  nums1 VARCHAR(17) NOT NULL,
+  nums2 VARCHAR(17),
+  date INT NOT NULL,
+  time INT)
+  ;
