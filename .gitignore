@@ -9,7 +9,7 @@ instance/
 
 # additionals
 chromedriver.exe
-scrapper_env/
+myenv/
 db/
 TODO
 *.bat

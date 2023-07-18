@@ -1,5 +1,4 @@
 from selenium import webdriver
-import os
 
 def get_page(url: str) -> str:
     chrome_options = webdriver.ChromeOptions()

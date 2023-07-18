@@ -1,5 +1,5 @@
 import bs4 as bs
-from chrome_driver import get_page
+from scrapper.chrome_driver import get_page
         
 class LotteryGame:
     def __init__(self, table, id='', nums1='', nums2='', date='', time=''):
@@ -20,7 +20,7 @@ class LotteryResultsCollector:
     def add_result(self, game_result):
         self.results.append(game_result)
 
-    def insert_multiple_records(self, conn):
+    def insert_multiple_records(self, cursor):
         #group the results by table name
         table_results = {}
         for result in self.results:
@@ -34,34 +34,33 @@ class LotteryResultsCollector:
 
             table_results[table_name].append(result)
 
-        #craete a cursor object to interact with the database
-        cursor = conn.cursor()
-
         #insert all the collected results into the appropriate tables
         for table_name, results in table_results.items():
             query = f"INSERT INTO {table_name} (id, nums1, date, time"
             values = [(result.id, result.nums1, result.date, result.time) for result in results]
 
-            if table_name in ["lottoplus", "ekstrapremia", "multimulti"]:
+            if table_name in ["lotto", "ekstrapensja", "multimulti"]:
                 query += ", nums2"
                 values = [(result.id, result.nums1, result.date, result.time, result.nums2) for result in results]
 
-            query += ") VALUES (%s, %s, %s, %s"
-            placeholders = "%s, %s, %s, %s" if table_name in ["lottoplus", "ekstrapremia", "multimulti"] else "%s, %s, %s, %s, %s"
-            query += placeholders + ")"
-            
+            query += ") VALUES ("
+            placeholders = "%s, %s, %s, %s, %s" if table_name in ["lotto", "ekstrapensja", "multimulti"] else "%s, %s, %s, %s"
+            query += placeholders + ") ON CONFLICT (id) DO NOTHING"
             cursor.executemany(query, values)
 
         #commit the transaction and close the cursor
-        conn.commit()
         cursor.close()
 
 def scrap_results(url: str):
+    #create collector
     result_collector = LotteryResultsCollector()
     print(f"Scraping url: {url}")
     page = get_page(url)
+    #initial parse
     page = bs.BeautifulSoup(page, "html.parser")
+    #loop through game box result
     for code in page.find_all("div", class_="game-main-box skip-contrast"):  
+        #loop through results in one game (id exists)
         for row in code.find_all("div", class_="result-item"):
             game = row.find("p", class_="result-item__name").get_text().strip().replace(" ","").lower()
             if game in ["lotto", "eurojackpot", "multimulti", "ekstrapensja", "minilotto", "kaskada"]:
@@ -81,8 +80,7 @@ def scrap_results(url: str):
                 result.nums2 = result.nums2.strip(",")
             else:
                 continue
+        #add result to collector
         result_collector.add_result(result)
+    #return collector
     return result_collector
-
-if __name__ == "__main__":
-    scrap_results("https://www.lotto.pl/wyniki")
