@@ -1,4 +1,5 @@
-import sys
+import sys, sched, time
+from datetime import datetime, timedelta
 sys.path.append('../Lotto_scrapper')
   
 from connect import create_tables, check_tables
@@ -56,12 +57,18 @@ def update_queue():
     #check for each game
     for game in ('lotto', 'multimulti', 'ekstrapensja', 'eurojackpot', 'minilotto', 'kaskada'):
         missingdate = check_missing_ids(game)
-        while missingdate:
+        while missingdate :
             date = str(missingdate)
             results = scrap_results(f"https://www.lotto.pl/{game}/wyniki-i-wygrane/date,{date[0:4]}-{date[4:6]}-{date[6:8]},300")
             cur = db_cur()
             results.insert_multiple_records(cur)
-    print('UPDATER - update_queue - ended.')
+            missingdate = check_missing_ids(game)
+            if date == str(missingdate):
+                #skip scrapping, if driver gets banned, server is down or something..
+                print(f'UPDATE for {game} - ended not successfully.')
+                break
+        print(f'UPDATE for {game} - ended successfully.')
+    print('UPDATE - update_queue - ended.')
  
 def update_last():
     # getting last records for all games
@@ -70,7 +77,34 @@ def update_last():
     cur = db_cur()
     results.insert_multiple_records(cur)
 
+#function to schedule the runs at the specified time
+def schedule_run(scheduler, interval):
+    now = datetime.now()
+    next_run = now.replace(hour=interval.hour, minute=interval.minute, second=0, microsecond=0)
+    if next_run <= now:
+        next_run += timedelta(days=1) #schedule for next day 
+    scheduler.enterabs(next_run.timestamp(), 1, update_queue, ())
+    print("Next run scheduled for:", next_run)
+
+def start_scheduler():
+    #create and start the scheduler
+    scheduler = sched.scheduler(time.time, time.sleep)
+
+    #run times 14:30 and 22:40, after games are presented on web
+    run_times = [
+        datetime.now().replace(hour=14, minute=30, second=0, microsecond=0),
+        datetime.now().replace(hour=22, minute=40, second=0, microsecond=0)
+    ]
+
+    #schedule the runs
+    for run_time in run_times:
+        schedule_run(scheduler, run_time)
+
+    #start the scheduler
+    scheduler.run()
+
 if __name__ == "__main__":
     check_db()
     update_last()
     update_queue()
+    start_scheduler()
